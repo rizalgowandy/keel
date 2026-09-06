@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/keel-hq/keel/constants"
@@ -37,18 +36,16 @@ func (s *sender) Configure(config *notification.Config) (bool, error) {
 	// Get configuration
 	var httpConfig Config
 
-	if os.Getenv(constants.EnvTeamsWebhookUrl) != "" {
-		httpConfig.Endpoint = os.Getenv(constants.EnvTeamsWebhookUrl)
-	} else {
-		return false, nil
-	}
+	httpConfig.Endpoint = config.Notifications.Teams.WebhookURL
 
 	// Validate endpoint URL.
 	if httpConfig.Endpoint == "" {
 		return false, nil
 	}
 	if _, err := url.ParseRequestURI(httpConfig.Endpoint); err != nil {
-		return false, fmt.Errorf("could not parse endpoint URL: %s\n", err)
+		// The parse error is not returned: url.ParseRequestURI echoes the
+		// input in its message and the endpoint may carry a secret.
+		return false, fmt.Errorf("could not parse endpoint URL: not a valid absolute URL")
 	}
 	s.endpoint = httpConfig.Endpoint
 
@@ -58,29 +55,40 @@ func (s *sender) Configure(config *notification.Config) (bool, error) {
 		Timeout:   timeout,
 	}
 
+	// The endpoint URL may embed the webhook signing secret in its path or
+	// query string, so only a redacted form is ever logged.
 	log.WithFields(log.Fields{
-		"name":     "teams",
-		"webhook": s.endpoint,
+		"name":    "teams",
+		"webhook": notification.SafeURL(s.endpoint),
 	}).Info("extension.notification.teams: sender configured")
+	if log.IsLevelEnabled(log.DebugLevel) {
+		log.WithFields(log.Fields{
+			"name":    "teams",
+			"webhook": notification.DebugURL(s.endpoint),
+		}).Debug("extension.notification.teams: sender endpoint (secrets redacted)")
+	}
 
 	return true, nil
 }
 
+// Teams incoming-webhook and Workflows payload documentation:
+// https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook
+// Microsoft 365 connectors are nearing deprecation; Teams Workflows are recommended and accept Message Cards.
 type SimpleTeamsMessageCard struct {
-	AtContext string `json:"@context"`
-	AtType    string `json:"@type"`
-	Sections []TeamsMessageSection `json:"sections"`
-	Summary    string `json:"summary"`
-	ThemeColor string `json:"themeColor"`
+	AtContext  string                `json:"@context"`
+	AtType     string                `json:"@type"`
+	Sections   []TeamsMessageSection `json:"sections"`
+	Summary    string                `json:"summary"`
+	ThemeColor string                `json:"themeColor"`
 }
 
 type TeamsMessageSection struct {
-	ActivityImage    string `json:"activityImage"`
-	ActivitySubtitle string `json:"activitySubtitle"`
-	ActivityText     string `json:"activityText"`
-	ActivityTitle    string `json:"activityTitle"`
-	Facts    []TeamsFact `json:"facts"`
-	Markdown bool `json:"markdown"`
+	ActivityImage    string      `json:"activityImage"`
+	ActivitySubtitle string      `json:"activitySubtitle"`
+	ActivityText     string      `json:"activityText"`
+	ActivityTitle    string      `json:"activityTitle"`
+	Facts            []TeamsFact `json:"facts"`
+	Markdown         bool        `json:"markdown"`
 }
 
 type TeamsFact struct {
@@ -91,32 +99,32 @@ type TeamsFact struct {
 // Microsoft Teams expects the hexidecimal formatted color to not have a "#" at the front
 // Source: https://stackoverflow.com/a/48798875/2199949
 func TrimFirstChar(s string) string {
-    for i := range s {
-        if i > 0 {
-            // The value i is the index in s of the second 
-            // character.  Slice to remove the first character.
-            return s[i:]
-        }
-    }
-    // There are 0 or 1 characters in the string. 
-    return ""
+	for i := range s {
+		if i > 0 {
+			// The value i is the index in s of the second
+			// character.  Slice to remove the first character.
+			return s[i:]
+		}
+	}
+	// There are 0 or 1 characters in the string.
+	return ""
 }
 
 func (s *sender) Send(event types.EventNotification) error {
 	// Marshal notification.
 	jsonNotification, err := json.Marshal(SimpleTeamsMessageCard{
-		AtType: "MessageCard",
-		AtContext: "http://schema.org/extensions",
+		AtType:     "MessageCard",
+		AtContext:  "http://schema.org/extensions",
 		ThemeColor: TrimFirstChar(event.Level.Color()),
-		Summary: event.Type.String(),
+		Summary:    event.Type.String(),
 		Sections: []TeamsMessageSection{
 			{
 				ActivityImage: constants.KeelLogoURL,
-				ActivityText: fmt.Sprintf("*%s*: %s", event.Name, event.Message),
-				ActivityTitle: fmt.Sprintf("**%s**",event.Type.String()),
+				ActivityText:  fmt.Sprintf("*%s*: %s", event.Name, event.Message),
+				ActivityTitle: fmt.Sprintf("**%s**", event.Type.String()),
 				Facts: []TeamsFact{
 					{
-						Name: "Version",
+						Name:  "Version",
 						Value: fmt.Sprintf("[https://keel.sh](https://keel.sh) %s", version.GetKeelVersion().Version),
 					},
 				},
@@ -130,13 +138,16 @@ func (s *sender) Send(event types.EventNotification) error {
 
 	// Send notification via HTTP POST.
 	resp, err := s.client.Post(s.endpoint, "application/json", bytes.NewBuffer(jsonNotification))
-	if err != nil || resp == nil || (resp.StatusCode != 200 && resp.StatusCode != 201) {
-		if resp != nil {
-			return fmt.Errorf("got status %d, expected 200/201", resp.StatusCode)
-		}
+	if err != nil {
 		return err
 	}
+	if resp == nil {
+		return fmt.Errorf("teams webhook returned no response")
+	}
 	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("got status %d, expected 2xx", resp.StatusCode)
+	}
 
 	return nil
 }

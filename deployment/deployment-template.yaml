@@ -25,7 +25,9 @@ rules:
       - ""
     resources:
       - namespaces
+      - nodes
     verbs:
+      - get
       - watch
       - list
   - apiGroups:
@@ -154,7 +156,7 @@ spec:
             - name: PROJECT_ID
               value: "{{ .project_id }}"
             - name: PUBSUB
-              value: "{{ .pubsub }}" # Set to '1' or 'true' to enable GCR pubsub
+              value: "{{ .pubsub }}" # Any non-empty legacy value enables GCR pubsub; '0' or 'false' disables it
             # Basic auth (to enable UI/API)
             - name: BASIC_AUTH_USER
               value: {{ .username }}
@@ -162,13 +164,11 @@ spec:
               value: {{ .password }}
             - name: AUTHENTICATED_WEBHOOKS
               value: "{{ .authenticated_webhooks | default "false" }}"
-            # Helm configuration
-            {{ if.tiller_namespace }} 
-            - name: HELM_PROVIDER
-              value: "1"
-            - name: TILLER_NAMESPACE
-              value: "{{ .tiller_namespace }}"
-            {{ end}}
+            # Helm provider (Helm v3)
+            {{ if .helm_provider }}
+            - name: HELM3_PROVIDER
+              value: "true"
+            {{ end }}
             # Enable AWS ECR
             - name: AWS_ACCESS_KEY_ID
               value: ""
@@ -182,11 +182,17 @@ spec:
             # Enable mattermost endpoint
             - name: MATTERMOST_ENDPOINT
               value: ""
+            # Enable shoutrrr notifications, whitespace separated service URLs.
+            # These embed credentials, so prefer supplying them from a secret.
+            - name: SHOUTRRR_URLS
+              value: ""
             # Enable MS Teams webhook endpoint
             - name: TEAMS_WEBHOOK_URL
               value: "{{ .teams_webhook_url }}"
-            - name: SLACK_TOKEN
-              value: "{{ .slack_token }}"
+            - name: SLACK_APP_TOKEN
+              value: "{{ .slack_app_token }}"
+            - name: SLACK_BOT_TOKEN
+              value: "{{ .slack_bot_token }}"
             - name: SLACK_CHANNELS
               value: "{{ .slack_channel | default "general" }}"
             - name: SLACK_APPROVALS_CHANNEL

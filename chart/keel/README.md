@@ -15,7 +15,7 @@ Keel provides several key features:
 
 * __Automatic [Google Container Registry](https://cloud.google.com/container-registry/) configuration__ - Keel automatically sets up topic and subscriptions for your deployment images by periodically scanning your environment.
 
-* __[Native, DockerHub and Quay webhooks](https://keel.sh/user-guide/triggers/#webhooks) support__ -  once webhook is received impacted deployments will be identified and updated.
+* __[Native, DockerHub, Harbor and Quay webhooks](https://keel.sh/user-guide/triggers/#webhooks) support__ -  once webhook is received impacted deployments will be identified and updated.
 
 *  __[Polling](https://keel.sh/user-guide/#polling-deployment-example)__ - when webhooks and pubsub aren't available - Keel can still be useful by checking Docker Registry for new tags (if current tag is semver) or same tag SHA digest change (ie: `latest`).
 
@@ -96,7 +96,8 @@ The following table lists has the main configurable parameters (polling, trigger
 | `webhook.endpoint`                          | Remote webhook endpoint                |                                                           |
 | `slack.enabled`                             | Enable/disable Slack Notification      | `false`                                                   |
 | `slack.botName`                             | Name of the Slack bot                  |                                                           |
-| `slack.token`                               | Slack token                            |                                                           |
+| `slack.botToken`                            | Slack bot token                        |                                                           |
+| `slack.appToken`                            | Slack application level token          |                                                           |
 | `slack.channel`                             | Slack channel                          |                                                           |
 | `slack.approvalsChannel`                    | Slack channel for approvals            |                                                           |
 | `teams.enabled`                             | Enable/disable MS Teams Notification   | `false`                                                   |
@@ -106,6 +107,11 @@ The following table lists has the main configurable parameters (polling, trigger
 | `service.externalIP`                        | Keel static IP                         |                                                           |
 | `service.externalPort`                      | Keel service port                      | `9300`                                                    |
 | `service.clusterIP`                         | Keel service clusterIP                 |                                                           |
+| `startupProbe.enabled`                      | Protect startup from premature liveness restarts | `true`                                           |
+| `startupProbe.initialDelaySeconds`          | Delay before the first startup check   | `0`                                                       |
+| `startupProbe.periodSeconds`                | Interval between startup checks        | `5`                                                       |
+| `startupProbe.timeoutSeconds`               | Startup check timeout                  | `5`                                                       |
+| `startupProbe.failureThreshold`             | Failed startup checks allowed          | `30`                                                      |
 | `webhookRelay.enabled`                      | Enable/disable WebhookRelay integration| `false`                                                   |
 | `webhookRelay.key`                          | WebhookRelay key                       |                                                           |
 | `webhookRelay.secret`                       | WebhookRelay secret                    |                                                           |
@@ -127,6 +133,9 @@ The following table lists has the main configurable parameters (polling, trigger
 | `mail.smtp.pass`                            | Mail SMTP server password (optional)   |                                                           |
 | `mattermost.enabled`                        | Enable/disable Mattermost integration  | `false`                                                   |
 | `mattermost.endpoint`                       | Mattermost API endpoint                |                                                           |
+| `shoutrrr.enabled`                          | Enable/disable Shoutrrr notifications ([docs](../../docs/shoutrrr-notifications.md)) | `false`             |
+| `shoutrrr.urls`                             | Shoutrrr service URLs, one per entry   | `[]`                                                      |
+| `shoutrrr.timeout`                          | Shoutrrr send timeout per service      | `10s`                                                     |
 | `googleApplicationCredentials`              | GCP Service account key configurable   |                                                           |
 | `hipchat.password`                          | Hipchat password for approvals user    |                                                           |
 | `gcloud.managedCertificates.enabled`        | Enable/Disable managed ssl on Gcloud   | `false`                                                   |
@@ -139,14 +148,21 @@ The following table lists has the main configurable parameters (polling, trigger
 | `basicauth.enabled`                         | Enable/disable Basic Auth on approvals | `false`                                                   |
 | `basicauth.user`                            | Basic Auth username                    |                                                           |
 | `basicauth.password`                        | Basic Auth password                    |                                                           |
+| `auth.mode`                                 | Admin auth mode: `legacy`, `basic`, or `external-proxy` | `legacy`                                      |
+| `auth.proxyUserHeader`                      | Trusted attribution header in external-proxy mode | `X-Forwarded-User`                          |
+| `auth.proxyLogoutURL`                       | Same-origin oauth2-proxy logout path   | `/oauth2/sign_out?rd=/`                                  |
+| `oauth2Proxy.enabled`                       | Run the required oauth2-proxy sidecar  | `false`                                                   |
+| `oauth2Proxy.existingSecret`                | Secret containing oauth2-proxy environment variables |                                             |
+| `oauth2Proxy.extraArgs`                     | Provider-specific oauth2-proxy arguments | `[]`                                                    |
 | `dockerRegistry.enabled`                    | Docker registry secret enabled.        | `false`                                                   |
 | `dockerRegistry.name`                       | Docker registry secret name            |                                                           |
 | `dockerRegistry.key`                        | Docker registry secret key             |                                                           |
 | `secret.name`                               | Secret name                            |                                                           |
 | `secret.create`                             | Create secret                          | `true`                                                    |
-| `persistence.enabled`                       | Enable/disable audit log persistence   | `true`                                                    |
+| `persistence.enabled`                       | Enable/disable audit log persistence   | `false`                                                    |
 | `persistence.storageClass`                  | Storage Class for the Persistent Volume| `-`                                                       |
 | `persistence.size`                          | Persistent Volume size                 | `1Gi`                                                     |
+| `imagePullSecrets`                          | Image pull secrets                     | `[]`                                                      |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
 

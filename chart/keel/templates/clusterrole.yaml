@@ -1,51 +1,14 @@
 {{- if .Values.rbac.enabled }}
+{{- if .Values.rbac.clusterRole.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ template "keel.name" . }}
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - namespaces
-    verbs:
-      - watch
-      - list
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - get
-      - watch
-      - list
-  - apiGroups:
-      - ""
-      - extensions
-      - apps
-      - batch
-    resources:
-      - pods
-      - replicasets
-      - replicationcontrollers
-      - statefulsets
-      - deployments
-      - daemonsets
-      - jobs
-      - cronjobs
-    verbs:
-      - get
-      - delete # required to delete pods during force upgrade of the same tag
-      - watch
-      - list
-      - update
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-      - pods/portforward
-    verbs:
-      - get
-      - create
-      - update
+{{- range .Values.rbac.clusterRole.rules }}
+  - apiGroups: {{ .apiGroups | toYaml | nindent 6 }}
+    resources: {{ .resources | toYaml | nindent 6 }}
+    verbs: {{ .verbs | toYaml | nindent 6 }}
+{{- end }}
+{{ end }}
 {{ end }}

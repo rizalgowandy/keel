@@ -2,7 +2,6 @@ package slack
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -16,9 +15,9 @@ import (
 
 	"github.com/keel-hq/keel/approvals"
 	b "github.com/keel-hq/keel/bot"
+	"github.com/keel-hq/keel/pkg/config"
 
 	// "github.com/keel-hq/keel/cache/memory"
-	"github.com/keel-hq/keel/constants"
 	"github.com/keel-hq/keel/types"
 
 	"testing"
@@ -38,7 +37,7 @@ func New(name, token, channel string,
 
 	slack := &Bot{}
 	b.RegisterBot(name, slack)
-	b.Run(k8sImplementer, approvalsManager)
+	b.Run(config.Config{}, k8sImplementer, approvalsManager)
 	return slack
 }
 
@@ -88,7 +87,7 @@ func (i *fakeSlackImplementer) PostMessage(channelID string, options ...slack.Ms
 }
 
 func newTestingUtils() (*sql.SQLStore, func()) {
-	dir, err := ioutil.TempDir("", "whstoretest")
+	dir, err := os.MkdirTemp("", "whstoretest")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,12 +107,12 @@ func newTestingUtils() (*sql.SQLStore, func()) {
 
 func TestBotRequest(t *testing.T) {
 
-	os.Setenv(constants.EnvSlackBotToken, "")
+	os.Setenv("SLACK_BOT_TOKEN", "")
 
 	f8s := &testutil.FakeK8sImplementer{}
 	fi := &fakeSlackImplementer{}
 
-	token := os.Getenv(constants.EnvSlackBotToken)
+	token := os.Getenv("SLACK_BOT_TOKEN")
 	if token == "" {
 		t.Skip()
 	}
@@ -155,12 +154,12 @@ func TestBotRequest(t *testing.T) {
 
 func TestProcessApprovedResponse(t *testing.T) {
 
-	os.Setenv(constants.EnvSlackBotToken, "")
+	os.Setenv("SLACK_BOT_TOKEN", "")
 
 	f8s := &testutil.FakeK8sImplementer{}
 	fi := &fakeSlackImplementer{}
 
-	token := os.Getenv(constants.EnvSlackBotToken)
+	token := os.Getenv("SLACK_BOT_TOKEN")
 	if token == "" {
 		t.Skip()
 	}
@@ -202,12 +201,12 @@ func TestProcessApprovedResponse(t *testing.T) {
 
 func TestProcessApprovalReply(t *testing.T) {
 
-	os.Setenv(constants.EnvSlackBotToken, "")
+	os.Setenv("SLACK_BOT_TOKEN", "")
 
 	f8s := &testutil.FakeK8sImplementer{}
 	fi := &fakeSlackImplementer{}
 
-	token := os.Getenv(constants.EnvSlackBotToken)
+	token := os.Getenv("SLACK_BOT_TOKEN")
 	if token == "" {
 		t.Skip()
 	}
@@ -273,12 +272,12 @@ func TestProcessApprovalReply(t *testing.T) {
 
 func TestProcessRejectedReply(t *testing.T) {
 
-	os.Setenv(constants.EnvSlackBotToken, "")
+	os.Setenv("SLACK_BOT_TOKEN", "")
 
 	f8s := &testutil.FakeK8sImplementer{}
 	fi := &fakeSlackImplementer{}
 
-	token := os.Getenv(constants.EnvSlackBotToken)
+	token := os.Getenv("SLACK_BOT_TOKEN")
 	if token == "" {
 		t.Skip()
 	}

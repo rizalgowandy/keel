@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
-	"github.com/keel-hq/keel/constants"
 	"github.com/keel-hq/keel/extension/notification"
 	"github.com/keel-hq/keel/types"
 
@@ -36,17 +34,15 @@ func (s *sender) Configure(config *notification.Config) (bool, error) {
 	// Get configuration
 	var httpConfig Config
 
-	if os.Getenv(constants.EnvDiscordWebhookUrl) != "" {
-		httpConfig.Endpoint = os.Getenv(constants.EnvDiscordWebhookUrl)
-	} else {
-		return false, nil
-	}
+	httpConfig.Endpoint = config.Notifications.Discord.WebhookURL
 	// Validate endpoint URL.
 	if httpConfig.Endpoint == "" {
 		return false, nil
 	}
 	if _, err := url.ParseRequestURI(httpConfig.Endpoint); err != nil {
-		return false, fmt.Errorf("could not parse endpoint URL: %s", err)
+		// The raw parse error is not logged/returned: url.ParseRequestURI
+		// echoes the input in its message and the endpoint may carry a secret.
+		return false, fmt.Errorf("could not parse endpoint URL: not a valid absolute URL")
 	}
 	s.endpoint = httpConfig.Endpoint
 
@@ -56,13 +52,23 @@ func (s *sender) Configure(config *notification.Config) (bool, error) {
 		Timeout:   timeout,
 	}
 
+	// The endpoint URL may embed the webhook signing secret in its path or
+	// query string, so only a redacted form is ever logged.
 	log.WithFields(log.Fields{
 		"name":     "discord",
-		"endpoint": s.endpoint,
+		"endpoint": notification.SafeURL(s.endpoint),
 	}).Info("extension.notification.discord: sender configured")
+	if log.IsLevelEnabled(log.DebugLevel) {
+		log.WithFields(log.Fields{
+			"name":     "discord",
+			"endpoint": notification.DebugURL(s.endpoint),
+		}).Debug("extension.notification.discord: sender endpoint (secrets redacted)")
+	}
 	return true, nil
 }
 
+// Discord execute-webhook API: https://discord.com/developers/docs/resources/webhook#execute-webhook
+// At least one of content, embeds, components, file, or poll is required; this payload uses embeds.
 type DiscordMessage struct {
 	Username string  `json:"username"`
 	Content  string  `json:"content"`
@@ -97,13 +103,16 @@ func (s *sender) Send(event types.EventNotification) error {
 	}
 
 	resp, err := s.client.Post(s.endpoint, "application/json", bytes.NewBuffer(jsonMessage))
-	if err != nil || resp == nil || (resp.StatusCode != 200 && resp.StatusCode != 204) {
-		if resp != nil {
-			return fmt.Errorf("got status %d, expected 200/204", resp.StatusCode)
-		}
+	if err != nil {
 		return err
 	}
+	if resp == nil {
+		return fmt.Errorf("discord webhook returned no response")
+	}
 	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("got status %d, expected 2xx", resp.StatusCode)
+	}
 
 	return nil
 }

@@ -5,12 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/keel-hq/keel/bot"
-	"github.com/keel-hq/keel/constants"
+	"github.com/keel-hq/keel/pkg/config"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
-	"os"
-	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -42,51 +40,26 @@ func init() {
 	bot.RegisterBot("slack", &Bot{})
 }
 
-func (b *Bot) Configure(approvalsRespCh chan *bot.ApprovalResponse, botMessagesChannel chan *bot.BotMessage) bool {
-	botToken := os.Getenv(constants.EnvSlackBotToken)
-
-	if !strings.HasPrefix(botToken, "xoxb-") {
-		log.Infof("bot.slack.Configure(): %s must have the prefix \"xoxb-\", skip bot configuration.", constants.EnvSlackBotToken)
+func (b *Bot) Configure(appConfig config.Config, approvalsRespCh chan *bot.ApprovalResponse, botMessagesChannel chan *bot.BotMessage) bool {
+	cfg := appConfig.Bots.Slack
+	if cfg.BotToken == "" && cfg.AppToken == "" {
+		log.Debug("bot.slack.Configure(): Slack tokens are not provided, skipping bot configuration")
 		return false
 	}
-
-	appToken := os.Getenv(constants.EnvSlackAppToken)
-	if !strings.HasPrefix(appToken, "xapp-") {
-		log.Infof("bot.slack.Configure(): %s must have the previf \"xapp-\".", constants.EnvSlackAppToken)
+	if !strings.HasPrefix(cfg.BotToken, "xoxb-") {
+		log.Warn("bot.slack.Configure(): SLACK_BOT_TOKEN must have the prefix \"xoxb-\", skipping bot configuration.")
 		return false
 	}
-
-	botName, botNameConfigured := os.LookupEnv(constants.EnvSlackBotName)
-	if !botNameConfigured {
-		botName = "keel"
+	if !strings.HasPrefix(cfg.AppToken, "xapp-") {
+		log.Warn("bot.slack.Configure(): SLACK_APP_TOKEN must have the prefix \"xapp-\", skipping bot configuration.")
+		return false
 	}
-	b.name = botName
-
-	channel, channelConfigured := os.LookupEnv(constants.EnvSlackApprovalsChannel)
-	if !channelConfigured {
-		channel = "general"
-	}
-
-	b.approvalsChannel = strings.TrimPrefix(channel, "#")
-
-	log.Debugf("Configuring slack with approval channel '%s' and bot '%s'", b.approvalsChannel, b.name)
-
-	debug, _ := strconv.ParseBool(os.Getenv("DEBUG"))
-	api := slack.New(
-		botToken,
-		slack.OptionDebug(debug),
-		slack.OptionAppLevelToken(appToken),
-	)
-
-	client := socketmode.New(
-		api,
-		socketmode.OptionDebug(debug),
-	)
-
-	b.slackSocket = client
+	b.name = cfg.BotName
+	b.approvalsChannel = strings.TrimPrefix(cfg.ApprovalsChannel, "#")
+	api := slack.New(cfg.BotToken, slack.OptionDebug(appConfig.Debug), slack.OptionAppLevelToken(cfg.AppToken))
+	b.slackSocket = socketmode.New(api, socketmode.OptionDebug(appConfig.Debug))
 	b.approvalsRespCh = approvalsRespCh
 	b.botMessagesChannel = botMessagesChannel
-
 	return true
 }
 

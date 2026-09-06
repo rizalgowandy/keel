@@ -1,17 +1,15 @@
 apiVersion: v1
-name: keel-custom
-description: Open source, tool for automating Kubernetes deployment updates. This is a custom fork of the original Keel project.
-version: 1.0.4
-appVersion: 0.19.1
+name: keel
+description: Open source tool for automating Kubernetes deployment updates.
+# Increase this version for every chart change. Application releases publish the
+# matching chart automatically; chart-v{version} is reserved for chart-only releases.
+version: 1.2.2
+appVersion: 0.22.3
 keywords:
 - kubernetes deployment
 - helm release
 - continuous deployment
-home: https://clem59170.github.io/keel
+home: https://github.com/keel-hq/keel
 sources:
 - https://github.com/keel-hq/keel
-- https://github.com/clem59170/keel
-maintainers:
-- name: clem59170
-engine: gotpl
 icon: https://raw.githubusercontent.com/keel-hq/keel/master/static/keel-logo.png

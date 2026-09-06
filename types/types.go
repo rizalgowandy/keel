@@ -1,4 +1,5 @@
 // Package types holds most of the types used across Keel
+//
 //go:generate jsonenums -type=Notification
 //go:generate jsonenums -type=Level
 //go:generate jsonenums -type=TriggerType
@@ -42,6 +43,19 @@ const KeelPollScheduleAnnotation = "keel.sh/pollSchedule"
 // KeelInitContainerAnnotation - label or annotation to track init containers, defaults to false for backward compatibility
 const KeelInitContainerAnnotation = "keel.sh/initContainers"
 
+// KeelImageVolumeAnnotation - label or annotation to track OCI image volume
+// sources (spec.volumes[].image.reference), defaults to false for backward
+// compatibility. Requires Kubernetes 1.31+ and container-runtime image-volume
+// support; ImageVolume feature-gate defaults vary by Kubernetes version.
+const KeelImageVolumeAnnotation = "keel.sh/imageVolumes"
+
+// KeelMonitorContainers - you can only have one keel settings per object type, but some of them might have multiple containers. Use this setting to
+// specify with a regular expression which containers should be monitored. If empty, all containers will be monitored.
+// It is currently a limitation that all containers in the same object will share the same configuration (pollSchedule, etc.).
+// Support a per-container configuration would require quite a refactor that would impact the frontend and the current implementation.
+// Future proposal for this would be to have namespaced annotations such as keel.sh/mycontainer/poolSchedule
+const KeelMonitorContainers = "keel.sh/monitorContainers"
+
 // KeelPollDefaultSchedule - defaul polling schedule
 var KeelPollDefaultSchedule = "@every 1m"
 
@@ -77,10 +91,12 @@ func init() {
 // Repository - represents main docker repository fields that
 // keel cares about
 type Repository struct {
-	Host   string `json:"host"`
-	Name   string `json:"name"`
-	Tag    string `json:"tag"`
-	Digest string `json:"digest"` // optional digest field
+	Host             string     `json:"host"`
+	Name             string     `json:"name"`
+	Tag              string     `json:"tag"`
+	Digest           string     `json:"digest"` // optional digest field
+	Platforms        []Platform `json:"platforms,omitempty" swaggerignore:"true"`
+	PlatformVerified bool       `json:"platformVerified,omitempty" swaggerignore:"true"`
 }
 
 // String gives you [host/]team/repo[:tag] identifier
@@ -370,3 +386,13 @@ func (t ProviderType) String() string {
 		return ""
 	}
 }
+
+type PolicyType int
+
+const (
+	PolicyTypeNone PolicyType = iota
+	PolicyTypeSemver
+	PolicyTypeForce
+	PolicyTypeGlob
+	PolicyTypeRegexp
+)
